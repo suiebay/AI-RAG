@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}ИИ көмекші — Оқу көмекшісі{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>ИИ көмекші</h1>
+  <p class="muted">Мұғалім қосқан материалдар бойынша сұрақтарыңды қой. Материалдарда жоқ нәрсеге жауап берілмейді.</p>
+</div>
+
+<div class="chat-box">
+  <div id="messages" class="messages">
+    <div class="msg msg-assistant">Сәлем! 👋 Мен мұғалімнің материалдары бойынша көмектесемін. Сұрағыңды жазшы.</div>
+  </div>
+  <form id="chat-form" class="chat-form">
+    <input type="text" id="chat-input" placeholder="Сұрағыңды жазыңыз..." autocomplete="off" required>
+    <button type="submit" class="btn-primary">Жіберу</button>
+  </form>
+</div>
+
+<script>
+const history = [];
+const messages = document.getElementById('messages');
+const form = document.getElementById('chat-form');
+const input = document.getElementById('chat-input');
+
+function addMsg(role, text) {
+  const d = document.createElement('div');
+  d.className = 'msg msg-' + role;
+  d.textContent = text;
+  messages.appendChild(d);
+  messages.scrollTop = messages.scrollHeight;
+  return d;
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const text = input.value.trim();
+  if (!text) return;
+  addMsg('user', text);
+  input.value = '';
+  input.disabled = true;
+  const thinking = addMsg('assistant', 'Ойлануда...');
+  thinking.classList.add('msg-loading');
+  try {
+    const r = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text, history: history })
+    });
+    const data = await r.json();
+    thinking.classList.remove('msg-loading');
+    if (data.error) {
+      thinking.textContent = 'Қате: ' + data.error;
+      thinking.classList.add('msg-error');
+    } else {
+      thinking.textContent = data.reply;
+      history.push({ role: 'user', content: text });
+      history.push({ role: 'assistant', content: data.reply });
+    }
+  } catch (err) {
+    thinking.classList.remove('msg-loading');
+    thinking.classList.add('msg-error');
+    thinking.textContent = 'Қате: ' + err.message;
+  } finally {
+    input.disabled = false;
+    input.focus();
+  }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Материалды бейімдеу — Оқу көмекшісі{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Материалды бейімдеу 🎯</h1>
+  <p class="muted">Оқу материалын өзіңе жақын тақырыппен оқы — ИИ мәтіннің идеясын сақтап, таңдаған тақырыбыңнан мысалдар қолданып қайта жазып береді.</p>
+</div>
+
+{% if not materials %}
+  <div class="empty">Әзірше материалдар жоқ. Мұғалім материал қосқан соң осында көрінеді.</div>
+{% else %}
+<section class="card stack">
+  <label>1-қадам. Оқу материалын таңда
+    <select id="material-select">
+      {% for m in materials %}
+        <option value="{{ m['id'] }}">{{ m['title'] }}</option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <div>
+    <div class="label-like">2-қадам. Өзіңе ұнайтын тақырыпты таңда</div>
+    <div class="theme-grid">
+      <button type="button" class="theme-btn" data-theme="футбол">⚽ Футбол</button>
+      <button type="button" class="theme-btn" data-theme="волейбол">🏐 Волейбол</button>
+      <button type="button" class="theme-btn" data-theme="баскетбол">🏀 Баскетбол</button>
+      <button type="button" class="theme-btn" data-theme="компьютерлік ойындар">🎮 Компьютерлік ойындар</button>
+      <button type="button" class="theme-btn" data-theme="музыка">🎵 Музыка</button>
+    </div>
+  </div>
+
+  <div class="row-right">
+    <button id="generate" class="btn-primary" disabled>Генерациялау</button>
+  </div>
+</section>
+
+<section id="result-section" class="card hidden">
+  <h2>Бейімделген мәтін</h2>
+  <div id="result" class="material-body"></div>
+</section>
+{% endif %}
+
+<script>
+let selectedTheme = null;
+const themeBtns = document.querySelectorAll('.theme-btn');
+const genBtn = document.getElementById('generate');
+const result = document.getElementById('result');
+const resultSection = document.getElementById('result-section');
+const materialSelect = document.getElementById('material-select');
+
+themeBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    themeBtns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedTheme = btn.dataset.theme;
+    if (genBtn) genBtn.disabled = false;
+  });
+});
+
+if (genBtn) {
+  genBtn.addEventListener('click', async () => {
+    if (!selectedTheme) return;
+    genBtn.disabled = true;
+    const originalText = 'Генерациялау';
+    genBtn.textContent = 'Генерацияланып жатыр...';
+    resultSection.classList.remove('hidden');
+    result.textContent = 'Күте тұрыңыз, мәтін дайындалып жатыр...';
+    try {
+      const r = await fetch('/api/adapt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          material_id: parseInt(materialSelect.value, 10),
+          theme: selectedTheme
+        })
+      });
+      const data = await r.json();
+      if (data.error) {
+        result.textContent = 'Қате: ' + data.error;
+      } else {
+        result.textContent = data.result;
+      }
+    } catch (err) {
+      result.textContent = 'Қате: ' + err.message;
+    } finally {
+      genBtn.disabled = false;
+      genBtn.textContent = originalText;
+    }
+  });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Әкімші панелі — Оқу көмекшісі{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Оқу материалдары</h1>
+  <p class="muted">Оқушыларға арналған мәтіндерді осында жасап, өңдеңіз. Оқушы ИИ-мен сөйлескенде, осы материалдар негіз болады.</p>
+</div>
+
+<section class="card">
+  <h2>Жаңа материал қосу</h2>
+  <form method="post" action="/admin/materials" class="stack">
+    <label>Тақырыбы
+      <input type="text" name="title" required placeholder="Мысалы: Фотосинтез">
+    </label>
+    <label>Мазмұны
+      <textarea name="content" rows="8" required placeholder="Оқу материалының толық мәтінін осында жазыңыз..."></textarea>
+    </label>
+    <div class="row-right">
+      <button type="submit" class="btn-primary">Сақтау</button>
+    </div>
+  </form>
+</section>
+
+<section>
+  <div class="section-head">
+    <h2>Қосылған материалдар</h2>
+    <span class="count-badge">{{ materials|length }}</span>
+  </div>
+  {% if not materials %}
+    <div class="empty">Әзірше материалдар жоқ. Алғашқы материалды жоғарыдан қосыңыз.</div>
+  {% endif %}
+  {% for m in materials %}
+  <article class="card material-card" data-id="{{ m['id'] }}">
+    <header class="material-header">
+      <h3>{{ m['title'] }}</h3>
+      <div class="material-actions">
+        <button type="button" class="btn-ghost" onclick="toggleEdit({{ m['id'] }})">Өңдеу</button>
+        <form method="post" action="/admin/materials/{{ m['id'] }}/delete" class="inline" onsubmit="return confirm('Шынымен жоясыз ба?');">
+          <button type="submit" class="btn-danger">Жою</button>
+        </form>
+      </div>
+    </header>
+    <pre class="material-body">{{ m['content'] }}</pre>
+    <form method="post" action="/admin/materials/{{ m['id'] }}/update" class="edit-form hidden stack">
+      <label>Тақырыбы
+        <input type="text" name="title" value="{{ m['title'] }}" required>
+      </label>
+      <label>Мазмұны
+        <textarea name="content" rows="8" required>{{ m['content'] }}</textarea>
+      </label>
+      <div class="row-right">
+        <button type="button" class="btn-ghost" onclick="toggleEdit({{ m['id'] }})">Бас тарту</button>
+        <button type="submit" class="btn-primary">Жаңарту</button>
+      </div>
+    </form>
+  </article>
+  {% endfor %}
+</section>
+
+<script>
+function toggleEdit(id) {
+  const card = document.querySelector('.material-card[data-id="' + id + '"]');
+  card.querySelector('.material-body').classList.toggle('hidden');
+  card.querySelector('.edit-form').classList.toggle('hidden');
+}
+</script>
+{% endblock %}

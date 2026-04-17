@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Басты бет — Оқу көмекшісі{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Сәлем, {{ user.username }}! 👋</h1>
+  <p class="muted">Мұғалімнің оқу материалдарын осы жерден табасыз.</p>
+</div>
+
+<div class="quick-actions">
+  <a href="/student/chat" class="action-card">
+    <div class="icon">💬</div>
+    <h3>ИИ көмекші</h3>
+    <p>Материал бойынша сұрақтарыңды қой және бірден жауап ал.</p>
+  </a>
+  <a href="/student/adapt" class="action-card">
+    <div class="icon">🎯</div>
+    <h3>Материалды бейімдеу</h3>
+    <p>Өзіңе жақын тақырыппен — футбол, ойын немесе музыка арқылы оқы.</p>
+  </a>
+</div>
+
+<div class="section-head">
+  <h2>Оқу материалдары</h2>
+  <span class="count-badge">{{ materials|length }}</span>
+</div>
+{% if not materials %}
+  <div class="empty">Мұғалім әзірше материал қоспаған.</div>
+{% endif %}
+{% for m in materials %}
+<article class="card">
+  <h3>{{ m['title'] }}</h3>
+  <pre class="material-body">{{ m['content'] }}</pre>
+</article>
+{% endfor %}
+{% endblock %}

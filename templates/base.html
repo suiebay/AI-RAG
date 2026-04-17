@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Оқу көмекшісі{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  {% if user %}
+  <nav class="topbar">
+    <a href="/" class="brand">📚 Оқу көмекшісі</a>
+    <div class="nav-links">
+      {% if user.role == 'admin' %}
+        <a href="/admin">Әкімші панелі</a>
+      {% else %}
+        <a href="/student">Басты бет</a>
+        <a href="/student/chat">ИИ көмекші</a>
+        <a href="/student/adapt">Материалды бейімдеу</a>
+      {% endif %}
+      <span class="user-badge">{{ user.username }}</span>
+      <form method="post" action="/logout" class="logout-form">
+        <button type="submit" class="btn-link">Шығу</button>
+      </form>
+    </div>
+  </nav>
+  {% endif %}
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
