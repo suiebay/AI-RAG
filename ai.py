@@ -1,10 +1,28 @@
+import asyncio
 import os
 import re
 
 from google import genai
 from google.genai import types
+from google.genai import errors as genai_errors
 
 MODEL = "gemini-3-flash-preview"
+
+# Generous output budget. gemini-3-flash is a "thinking" model: its internal
+# reasoning tokens are charged against max_output_tokens, so a small cap gets
+# eaten by thinking and the visible answer is truncated mid-word. Kazakh
+# Cyrillic also costs ~2-3x more tokens per word than English.
+MAX_OUTPUT_TOKENS = 8192
+
+# Retry config for transient Gemini errors (503 overloaded, 429 rate limit).
+_RETRY_CODES = {429, 500, 502, 503, 504}
+_MAX_RETRIES = 4
+_BACKOFF_BASE = 1.5  # seconds: 1.5, 3, 6, 12
+
+_BUSY_MESSAGE = (
+    "Қазір ИИ қызметіне сұраныс өте көп. Бірнеше секундтан кейін "
+    "қайталап көріңіз."
+)
 
 _client = None
 
@@ -80,6 +98,41 @@ def _history_to_contents(history: list) -> list:
     return contents
 
 
+class AIBusyError(Exception):
+    """Gemini is overloaded/rate-limited after all retries were exhausted."""
+
+
+async def _generate(contents, system_instruction: str) -> str:
+    """Call Gemini with capped thinking, a large output budget, and retries.
+
+    Retries transient 503/429/5xx with exponential backoff so a single
+    "model overloaded" blip never reaches the student.
+    """
+    config = types.GenerateContentConfig(
+        system_instruction=system_instruction,
+        max_output_tokens=MAX_OUTPUT_TOKENS,
+        # Keep thinking light so it doesn't consume the answer's token budget.
+        thinking_config=types.ThinkingConfig(thinking_level="low"),
+    )
+
+    last_err = None
+    for attempt in range(_MAX_RETRIES):
+        try:
+            resp = await _get_client().aio.models.generate_content(
+                model=MODEL, contents=contents, config=config
+            )
+            return _strip_markdown(resp.text or "")
+        except genai_errors.APIError as e:
+            last_err = e
+            if e.code not in _RETRY_CODES or attempt == _MAX_RETRIES - 1:
+                break
+            await asyncio.sleep(_BACKOFF_BASE * (2 ** attempt))
+
+    if isinstance(last_err, genai_errors.APIError) and last_err.code in _RETRY_CODES:
+        raise AIBusyError(_BUSY_MESSAGE) from last_err
+    raise last_err if last_err else RuntimeError("ИИ жауабы алынбады")
+
+
 async def chat_with_context(message: str, history: list, context_text: str) -> str:
     context_block = context_text.strip() or "(мұғалім әлі материал қоспаған)"
     system = f"{SYSTEM_CHAT}\n\n=== ОҚУ МАТЕРИАЛДАРЫ ===\n{context_block}"
@@ -89,15 +142,8 @@ async def chat_with_context(message: str, history: list, context_text: str) -> s
         types.Content(role="user", parts=[types.Part.from_text(text=message)])
     )
 
-    resp = await _get_client().aio.models.generate_content(
-        model=MODEL,
-        contents=contents,
-        config=types.GenerateContentConfig(
-            system_instruction=system,
-            max_output_tokens=1024,
-        ),
-    )
-    return _strip_markdown(resp.text or "") or "Кешіріңіз, жауап алынбады. Қайталап көріңіз."
+    reply = await _generate(contents, system)
+    return reply or "Кешіріңіз, жауап алынбады. Қайталап көріңіз."
 
 
 async def adapt_content(title: str, content: str, theme: str) -> str:
@@ -107,12 +153,5 @@ async def adapt_content(title: str, content: str, theme: str) -> str:
         "Негізгі идеяны жоғалтпа, бірақ барлық мысалдар мен салыстыруларды "
         f'"{theme}" саласынан ал.'
     )
-    resp = await _get_client().aio.models.generate_content(
-        model=MODEL,
-        contents=user_prompt,
-        config=types.GenerateContentConfig(
-            system_instruction=_system_adapt(theme),
-            max_output_tokens=2048,
-        ),
-    )
-    return _strip_markdown(resp.text or "") or "Кешіріңіз, мәтін генерациялау сәтсіз аяқталды."
+    result = await _generate(user_prompt, _system_adapt(theme))
+    return result or "Кешіріңіз, мәтін генерациялау сәтсіз аяқталды."

@@ -9,7 +9,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from starlette.middleware.sessions import SessionMiddleware
 
-from ai import adapt_content, chat_with_context
+from ai import adapt_content, chat_with_context, AIBusyError
 from auth import verify_password
 from database import get_conn, init_db
 
@@ -214,6 +214,8 @@ async def api_chat(request: Request, body: ChatBody):
     context_text = "\n\n".join([f"### {r['title']}\n{r['content']}" for r in rows])
     try:
         reply = await chat_with_context(body.message, body.history, context_text)
+    except AIBusyError as e:
+        return JSONResponse({"error": str(e)}, status_code=503)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
     return {"reply": reply}
@@ -236,6 +238,8 @@ async def api_adapt(request: Request, body: AdaptBody):
         raise HTTPException(status_code=404, detail="Материал табылмады")
     try:
         result = await adapt_content(row["title"], row["content"], body.theme)
+    except AIBusyError as e:
+        return JSONResponse({"error": str(e)}, status_code=503)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
     return {"result": result}
